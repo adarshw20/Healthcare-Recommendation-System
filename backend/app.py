@@ -3,9 +3,15 @@ from flask_cors import CORS
 import json
 import logging
 import datetime
+from typing import Dict, List, Optional, Any
+from medical_model import MedicalDiagnosisModel
+
+# Initialize medical model instance
+medical_model = MedicalDiagnosisModel()
+
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "*", "allow_headers": ["Content-Type", "Authorization"]}}, supports_credentials=True)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -246,38 +252,25 @@ HEALTH_CONDITIONS = {
     }
 }
 
-def analyze_symptoms(symptoms):
-    """Analyze symptoms and return appropriate condition key with severity assessment"""
+def analyze_symptoms(symptoms: List[str], age: Optional[int] = None, gender: Optional[str] = None) -> Dict[str, Any]:
+    """Analyze symptoms using the medical model"""
     if not symptoms:
-        return 'general'
+        return 'general', 'low'
+    
+    try:
+        # Get diagnosis from medical model
+        diagnosis = medical_model.generate_diagnosis(
+            symptoms=symptoms,
+            age=age,
+            gender=gender
+        )
         
-    symptoms_lower = [s.lower().replace(' ', '_') for s in symptoms]
-    symptom_count = len(symptoms_lower)
-    
-    # Check for migraine pattern
-    migraine_symptoms = {'severe_headache', 'nausea', 'vomiting', 'light_sensitivity', 'sound_sensitivity', 'aura'}
-    if len(set(symptoms_lower) & migraine_symptoms) >= 3:
-        return 'migraine'
-    
-    # Check for gastroenteritis
-    gi_symptoms = {'nausea', 'vomiting', 'diarrhea', 'abdominal_cramps', 'fever'}
-    if len(set(symptoms_lower) & gi_symptoms) >= 3:
-        return 'gastroenteritis'
-    
-    # Check for fever-related conditions
-    if 'fever' in symptoms_lower:
-        if 'headache' in symptoms_lower or 'body_aches' in symptoms_lower:
-            return 'fever_headache'
-    
-    # Check for respiratory conditions
-    respiratory_symptoms = {'cough', 'fatigue', 'shortness_of_breath', 'chest_discomfort', 'sore_throat'}
-    if len(set(symptoms_lower) & respiratory_symptoms) >= 2:
-        return 'cough_fatigue'
-    
-    # If no specific pattern matches
-    return 'general'
+        return diagnosis['condition'], diagnosis['severity']
+    except Exception as e:
+        logger.error(f"Error analyzing symptoms: {str(e)}")
+        return 'general', 'low'
 
-def generate_diet_plan(age, weight, height, lifestyle):
+def generate_diet_plan(age: int, weight: float, height: float, lifestyle: str) -> Dict[str, Any]:
     """Generate personalized diet plan based on user data"""
     bmi = weight / ((height / 100) ** 2)
     
@@ -306,7 +299,7 @@ def generate_diet_plan(age, weight, height, lifestyle):
             'snacks': ['Greek yogurt', 'Fruits', 'Nuts', 'Green tea']
         }
 
-def generate_fitness_plan(age, lifestyle):
+def generate_fitness_plan(age: int, lifestyle: str) -> Dict[str, Any]:
     """Generate personalized fitness plan"""
     exercise_level = lifestyle.get('exercise', 'rarely')
     
@@ -336,342 +329,184 @@ def generate_fitness_plan(age, lifestyle):
 def health_assessment():
     try:
         data = request.get_json()
+        logger.info(f"Received health assessment request: {data}")
         
-        # Extract user data with validation
-        age = max(0, min(120, int(data.get('age', 25))))  # Clamp age between 0-120
-        weight = max(0, min(300, float(data.get('weight', 70))))  # Clamp weight between 0-300kg
-        height = max(50, min(250, float(data.get('height', 170))))  # Clamp height between 50-250cm
-        symptoms = [s.strip() for s in data.get('symptoms', []) if s.strip()]  # Clean symptoms
+        # Validate request data
+        if not data or not isinstance(data, dict):
+            logger.error("Invalid input data format")
+            return jsonify({
+                'error': 'Invalid input data format',
+                'details': 'Request body must be a JSON object'
+            }), 400
+        
+        # Required fields validation
+        required_fields = ['symptoms', 'age', 'gender', 'height', 'weight']
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            logger.error(f"Missing required fields: {missing_fields}")
+            return jsonify({
+                'error': 'Missing required fields',
+                'details': f"Missing fields: {', '.join(missing_fields)}"
+            }), 400
+        
+        # Extract and validate data
+        symptoms = data.get('symptoms', [])
+        if not isinstance(symptoms, list) or not all(isinstance(s, str) for s in symptoms):
+            logger.error("Invalid symptoms format")
+            return jsonify({
+                'error': 'Invalid symptoms format',
+                'details': 'Symptoms must be a list of strings'
+            }), 400
+        
+        # Convert and validate numeric values
+        try:
+            age = int(data.get('age', ''))
+            weight = int(data.get('weight', ''))
+            height = int(data.get('height', ''))
+            
+            if age <= 0 or weight <= 0 or height <= 0:
+                raise ValueError("Numeric values must be positive")
+                
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Error converting numeric values: {str(e)}")
+            return jsonify({
+                'error': 'Invalid numeric values',
+                'details': str(e)
+            }), 400
+        
+        # Handle lifestyle data
         lifestyle = data.get('lifestyle', {})
+        if not isinstance(lifestyle, dict):
+            lifestyle = {}
+            logger.warning("Lifestyle data not provided as dictionary, using default values")
         
-        # Analyze symptoms and get condition data
-        condition_key = analyze_symptoms(symptoms)
-        condition_data = HEALTH_CONDITIONS.get(condition_key, HEALTH_CONDITIONS['general'])
+        gender = data.get('gender', '').lower()
+        if gender not in ['male', 'female', 'other']:
+            gender = None
+            logger.warning(f"Invalid gender value, using None")
         
-        # Calculate BMI and category
-        bmi = round(weight / ((height / 100) ** 2), 1)
-        bmi_category = (
-            'Underweight' if bmi < 18.5 else
-            'Normal weight' if bmi < 25 else
-            'Overweight' if bmi < 30 else
-            'Obese (Class I)' if bmi < 35 else
-            'Obese (Class II)' if bmi < 40 else
-            'Obese (Class III)'
+        logger.info(f"Processing symptoms: {symptoms}")
+        logger.info(f"User data - Age: {age}, Gender: {gender}, Weight: {weight}, Height: {height}, Lifestyle: {lifestyle}")
+        
+        # Generate diagnosis
+        diagnosis = medical_model.generate_diagnosis(
+            symptoms=symptoms,
+            age=age,
+            gender=gender
         )
         
-        # Generate comprehensive response
+        if not diagnosis:
+            logger.error("Medical model returned empty diagnosis")
+            return jsonify({
+                'error': 'Failed to generate diagnosis',
+                'details': 'Medical model returned empty response'
+            }), 500
+        
+        # Validate diagnosis response
+        required_diagnosis_fields = [
+            'diagnosis', 'condition', 'condition_id', 'confidence',
+            'severity', 'description', 'recommendation',
+            'alternative_conditions', 'symptoms'
+        ]
+        missing_fields = [field for field in required_diagnosis_fields if field not in diagnosis]
+        if missing_fields:
+            logger.error(f"Missing fields in diagnosis: {missing_fields}")
+            return jsonify({
+                'error': 'Incomplete diagnosis data',
+                'details': f"Missing fields: {', '.join(missing_fields)}"
+            }), 500
+        
+        # Generate recommendations using medical_model instance
         response = {
-            'assessment_summary': {
-                'primary_diagnosis': condition_data['diagnosis'],
-                'severity': condition_data.get('severity', 'Not Specified'),
-                'condition_description': condition_data.get('description', ''),
-                'identified_symptoms': symptoms,
-                'urgency_level': condition_data.get('urgency', 'Low')
-            },
-            'clinical_information': {
-                'possible_causes': condition_data.get('possible_causes', []),
-                'differential_diagnosis': get_differential_diagnosis(condition_key, symptoms),
-                'recommended_tests': condition_data.get('recommended_tests', []),
-                'red_flags': condition_data.get('when_to_seek_help', [])
-            },
-            'treatment_plan': {
-                'medications': condition_data.get('medications', []),
-                'self_care': condition_data.get('self_care', []),
-                'follow_up_instructions': get_follow_up_instructions(condition_key, age, symptoms)
-            },
-            'preventive_care': {
-                'lifestyle_recommendations': get_lifestyle_recommendations(lifestyle),
-                'preventive_measures': get_preventive_measures(condition_key)
-            },
-            'health_metrics': {
-                'bmi': bmi,
-                'bmi_category': bmi_category,
-                'risk_factors': analyze_risk_factors(data),
-                'vital_signs_interpretation': interpret_vital_signs(data.get('vital_signs', {}))
-            },
-            'additional_resources': [
-                'Patient education materials',
-                'Local healthcare providers',
-                'Support groups if applicable',
-                'Emergency contact information'
-            ]
-        }
-        
-        # Add metadata and return response
-        response['metadata'] = {
-            'assessment_timestamp': datetime.datetime.now().isoformat(),
-            'symptoms_analyzed': len(symptoms),
-            'condition_confidence': 'high' if len(symptoms) > 2 else 'medium' if symptoms else 'low'
-        }
-        
-        logger.info(f"Comprehensive health assessment completed for {age}y/o with {len(symptoms)} symptoms")
-        
-        return jsonify({
+            'timestamp': datetime.datetime.now().isoformat(),
             'success': True,
-            'assessment': response,
-            'diet': generate_diet_plan(age, weight, height, lifestyle),
-            'fitness': generate_fitness_plan(age, lifestyle)
-        })
+            'data': {
+                **diagnosis
+            }
+        }
+
+        try:
+            # Try to get differential diagnosis
+            try:
+                differential = medical_model.get_differential_diagnosis(diagnosis['condition'], symptoms)
+                response['data']['differential_diagnosis'] = differential
+            except AttributeError:
+                logger.warning("Differential diagnosis method not available")
+
+            # Try to get follow-up instructions
+            try:
+                follow_up = medical_model.get_follow_up_instructions(diagnosis['condition'], age, symptoms)
+                response['data']['follow_up_instructions'] = follow_up
+            except AttributeError:
+                logger.warning("Follow-up instructions method not available")
+
+            # Try to get lifestyle recommendations
+            try:
+                lifestyle_rec = medical_model.get_lifestyle_recommendations(lifestyle)
+                response['data']['lifestyle_recommendations'] = lifestyle_rec
+            except AttributeError:
+                logger.warning("Lifestyle recommendations method not available")
+
+            # Try to get preventive measures
+            try:
+                preventive = medical_model.get_preventive_measures(diagnosis['condition'])
+                response['data']['preventive_measures'] = preventive
+            except AttributeError:
+                logger.warning("Preventive measures method not available")
+
+            # Try to get diet plan
+            try:
+                diet_plan = medical_model.generate_diet_plan(age, weight, height, lifestyle)
+                response['data']['diet_plan'] = diet_plan
+            except AttributeError:
+                logger.warning("Diet plan method not available")
+
+            # Try to get fitness plan
+            try:
+                fitness_plan = medical_model.generate_fitness_plan(age, lifestyle)
+                response['data']['fitness_plan'] = fitness_plan
+            except AttributeError:
+                logger.warning("Fitness plan method not available")
+
+            # Try to get emergency contacts
+            try:
+                emergency = medical_model.emergency_contacts()
+                response['data']['emergency_contacts'] = emergency
+            except AttributeError:
+                logger.warning("Emergency contacts method not available")
+
+            # Try to get health tips
+            try:
+                health_tips_list = medical_model.health_tips()
+                response['data']['health_tips'] = health_tips_list
+            except AttributeError:
+                logger.warning("Health tips method not available")
+
+        except Exception as e:
+            logger.error(f"Error generating recommendations: {str(e)}", exc_info=True)
+            return jsonify({
+                'error': 'Failed to generate recommendations',
+                'details': str(e)
+            }), 500
+
+        logger.info("Successfully generated complete response")
+        return jsonify(response)
+        
+    except ValueError as ve:
+        logger.error(f"Value error in health assessment: {str(ve)}", exc_info=True)
+        return jsonify({
+            'error': 'Invalid input data',
+            'details': str(ve)
+        }), 400
     
     except Exception as e:
-        logger.error(f"Error in health assessment: {str(e)}")
+        logger.error(f"Unexpected error in health assessment: {str(e)}", exc_info=True)
         return jsonify({
-            'success': False,
-            'error': 'An error occurred while processing your assessment'
+            'error': 'Internal server error',
+            'details': str(e)
         }), 500
 
-def get_differential_diagnosis(condition_key, symptoms):
-    """Generate a list of possible alternative diagnoses to consider"""
-    differentials = {
-        'fever_headache': [
-            'Influenza (Flu)',
-            'Common Cold',
-            'COVID-19',
-            'Sinusitis',
-            'Meningitis (if severe headache and neck stiffness)',
-            'Mononucleosis (in adolescents/young adults)'
-        ],
-        'cough_fatigue': [
-            'Acute Bronchitis',
-            'Pneumonia',
-            'Asthma exacerbation',
-            'Chronic Obstructive Pulmonary Disease (COPD)',
-            'Postnasal Drip Syndrome',
-            'Gastroesophageal Reflux Disease (GERD)'
-        ],
-        'gastroenteritis': [
-            'Food Poisoning',
-            'Inflammatory Bowel Disease flare',
-            'Appendicitis (if severe abdominal pain)',
-            'Diverticulitis',
-            'Bowel Obstruction',
-            'Gastroparesis'
-        ],
-        'migraine': [
-            'Tension Headache',
-            'Cluster Headache',
-            'Sinus Headache',
-            'Medication Overuse Headache',
-            'Temporal Arteritis (in patients > 50 years)',
-            'Intracranial Hemorrhage (if sudden onset)'
-        ]
-    }
-    return differentials.get(condition_key, ['No specific differentials available'])
 
-def get_follow_up_instructions(condition_key, age, symptoms):
-    """Generate appropriate follow-up instructions based on condition and age"""
-    base_instructions = [
-        "Return immediately if symptoms worsen or new symptoms develop",
-        "Follow up with primary care physician if symptoms persist beyond expected duration"
-    ]
-    
-    condition_specific = {
-        'fever_headache': [
-            "Return if fever > 38.9°C (102°F) persists > 3 days",
-            "Seek care for severe headache, confusion, or neck stiffness"
-        ],
-        'cough_fatigue': [
-            "Follow up if cough persists > 3 weeks",
-            "Seek care for difficulty breathing or chest pain"
-        ],
-        'gastroenteritis': [
-            "Follow up if symptoms persist > 2 days",
-            "Seek care for signs of dehydration or blood in stool"
-        ],
-        'migraine': [
-            "Follow up with neurologist if migraines are frequent or severe",
-            "Keep a headache diary to identify triggers"
-        ]
-    }
-    
-    age_based = []
-    if age < 2:
-        age_based.append("Pediatric follow-up recommended within 24-48 hours")
-    elif age > 65:
-        age_based.append("Geriatric follow-up recommended due to increased risk of complications")
-    
-    return base_instructions + condition_specific.get(condition_key, []) + age_based
-
-def get_lifestyle_recommendations(lifestyle):
-    """Generate personalized lifestyle recommendations"""
-    recommendations = []
-    
-    # Exercise recommendations
-    exercise = lifestyle.get('exercise', 'sometimes')
-    if exercise in ['never', 'rarely']:
-        recommendations.append(
-            "Start with light exercise (e.g., 15-minute walks) and gradually increase"
-        )
-    
-    # Sleep recommendations
-    sleep = lifestyle.get('sleep', '7-9')
-    if sleep == 'less than 6':
-        recommendations.append(
-            "Aim for 7-9 hours of sleep per night for optimal health"
-        )
-    
-    # Diet recommendations
-    diet = lifestyle.get('diet', 'mixed')
-    if diet == 'unhealthy':
-        recommendations.append(
-            "Incorporate more fruits, vegetables, and whole grains into your diet"
-        )
-    
-    # Stress management
-    if lifestyle.get('stress_level') in ['high', 'very high']:
-        recommendations.extend([
-            "Practice stress-reduction techniques (e.g., meditation, deep breathing)",
-            "Consider counseling or therapy for stress management"
-        ])
-    
-    # Smoking and alcohol
-    if lifestyle.get('smoking'):
-        recommendations.append(
-            "Consider smoking cessation programs to reduce health risks"
-        )
-    if lifestyle.get('alcohol') in ['moderate', 'heavy']:
-        recommendations.append(
-            "Limit alcohol consumption to recommended guidelines"
-        )
-    
-    return recommendations if recommendations else ["No specific lifestyle changes recommended at this time."]
-
-def get_preventive_measures(condition_key):
-    """Provide preventive measures for specific conditions"""
-    measures = {
-        'fever_headache': [
-            "Annual flu vaccination",
-            "Frequent hand washing",
-            "Avoid close contact with sick individuals",
-            "Stay home when feeling unwell"
-        ],
-        'cough_fatigue': [
-            "Annual flu shot",
-            "Pneumonia vaccine if eligible",
-            "Avoid smoking and secondhand smoke",
-            "Use a humidifier in dry environments"
-        ],
-        'gastroenteritis': [
-            "Frequent hand washing, especially before eating",
-            "Proper food handling and preparation",
-            "Avoid undercooked foods when traveling",
-            "Stay hydrated"
-        ],
-        'migraine': [
-            "Identify and avoid personal triggers",
-            "Maintain regular sleep schedule",
-            "Stay hydrated and don't skip meals",
-            "Consider preventive medications if migraines are frequent"
-        ]
-    }
-    return measures.get(condition_key, [
-        "Regular health check-ups",
-        "Balanced diet and regular exercise",
-        "Adequate sleep and stress management"
-    ])
-
-def interpret_vital_signs(vital_signs):
-    """Interpret vital signs and flag any abnormalities"""
-    if not vital_signs:
-        return "No vital signs provided"
-    
-    results = []
-    
-    # Temperature interpretation
-    if 'temperature' in vital_signs:
-        temp = float(vital_signs['temperature'])
-        if temp < 36.1:  # 97°F
-            results.append(f"Low body temperature ({temp}°C): May indicate hypothermia or other conditions")
-        elif temp > 37.2:  # 99°F
-            results.append(f"Elevated temperature ({temp}°C): May indicate fever")
-    
-    # Heart rate interpretation
-    if 'heart_rate' in vital_signs:
-        hr = int(vital_signs['heart_rate'])
-        if hr < 60:
-            results.append(f"Low heart rate ({hr} bpm): Bradycardia")
-        elif hr > 100:
-            results.append(f"High heart rate ({hr} bpm): Tachycardia")
-    
-    # Blood pressure interpretation
-    if 'blood_pressure' in vital_signs:
-        try:
-            systolic, diastolic = map(int, vital_signs['blood_pressure'].split('/'))
-            if systolic < 90 or diastolic < 60:
-                results.append(f"Low blood pressure ({systolic}/{diastolic}): Hypotension")
-            elif systolic >= 140 or diastolic >= 90:
-                results.append(f"High blood pressure ({systolic}/{diastolic}): Hypertension")
-        except (ValueError, AttributeError):
-            pass
-    
-    # Respiratory rate interpretation
-    if 'respiratory_rate' in vital_signs:
-        rr = int(vital_signs['respiratory_rate'])
-        if rr < 12:
-            results.append(f"Low respiratory rate ({rr} breaths/min): Bradypnea")
-        elif rr > 20:
-            results.append(f"High respiratory rate ({rr} breaths/min): Tachypnea")
-    
-    # Oxygen saturation interpretation
-    if 'oxygen_saturation' in vital_signs:
-        spo2 = float(vital_signs['oxygen_saturation'])
-        if spo2 < 92:
-            results.append(f"Low oxygen saturation ({spo2}%): Hypoxemia - seek medical attention")
-    
-    return results if results else "All vital signs within normal ranges"
-
-def analyze_risk_factors(data):
-    """Analyze risk factors based on user data"""
-    risk_factors = []
-    
-    lifestyle = data.get('lifestyle', {})
-    age = int(data.get('age', 25))
-    
-    # Basic demographics
-    if age > 50:
-        risk_factors.append('Age > 50: Increased risk for chronic conditions')
-    
-    # Lifestyle factors
-    if lifestyle.get('smoking'):
-        risk_factors.append('Tobacco use: Increases risk of cardiovascular, respiratory diseases, and cancer')
-    
-    if lifestyle.get('alcohol') in ['moderate', 'heavy']:
-        risk_factors.append('Alcohol consumption: May affect liver, cardiovascular, and mental health')
-    
-    if lifestyle.get('exercise') in ['never', 'rarely']:
-        risk_factors.append('Physical inactivity: Associated with increased risk of chronic diseases')
-    
-    if lifestyle.get('diet') == 'unhealthy':
-        risk_factors.append('Poor diet: May contribute to obesity, diabetes, and heart disease')
-    
-    # Sleep patterns
-    sleep = lifestyle.get('sleep', '7-9')
-    if sleep == 'less than 6':
-        risk_factors.append('Insufficient sleep: Associated with various health risks')
-    elif sleep == 'more than 9':
-        risk_factors.append('Excessive sleep: May indicate underlying health issues')
-    
-    # Stress levels
-    if lifestyle.get('stress_level') in ['high', 'very high']:
-        risk_factors.append('Chronic stress: May impact immune function and overall health')
-    
-    # Medical history
-    medical_history = data.get('medical_history', [])
-    if 'diabetes' in medical_history:
-        risk_factors.append('Diabetes: Requires careful management to prevent complications')
-    if 'hypertension' in medical_history:
-        risk_factors.append('Hypertension: Increases cardiovascular risk')
-    if 'high_cholesterol' in medical_history:
-        risk_factors.append('High cholesterol: Contributes to cardiovascular disease risk')
-    
-    # Family history
-    family_history = data.get('family_history', [])
-    if 'heart_disease' in family_history:
-        risk_factors.append('Family history of heart disease: Increased cardiovascular risk')
-    if 'diabetes' in family_history:
-        risk_factors.append('Family history of diabetes: Increased risk of developing diabetes')
-    
-    return risk_factors if risk_factors else ['No significant risk factors identified']
 
 @app.route('/api/health-tips', methods=['GET'])
 def health_tips():

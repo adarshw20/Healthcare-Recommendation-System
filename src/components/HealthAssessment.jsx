@@ -3,19 +3,19 @@ import { useTheme } from '../contexts/ThemeContext';
 import { FaInfoCircle, FaExclamationTriangle, FaCheckCircle, FaArrowRight, FaArrowLeft } from 'react-icons/fa';
 import './HealthAssessment.css';
 
-const HealthAssessment = ({ onSubmit, loading }) => {
+const HealthAssessment = ({ onSubmit, loading, onError }) => {
   const { isDarkMode } = useTheme();
   
   // Set theme attribute on component mount and when theme changes
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
+
   const [formData, setFormData] = useState({
     age: '',
     gender: '',
     height: '',
     weight: '',
-    currentSymptoms: [], // Initialize as empty array
     symptoms: [],
     duration: '',
     severity: '',
@@ -28,6 +28,9 @@ const HealthAssessment = ({ onSubmit, loading }) => {
       sleep: ''
     }
   });
+
+  const [errors, setErrors] = useState({});
+  const [validationErrors, setValidationErrors] = useState({});
 
   // Use symptoms array as the single source of truth for selected symptoms
   const selectedSymptoms = Array.isArray(formData.symptoms) ? formData.symptoms : [];
@@ -59,6 +62,12 @@ const HealthAssessment = ({ onSubmit, loading }) => {
         [name]: type === 'checkbox' ? checked : value
       }));
     }
+
+    // Clear validation errors when input changes
+    setValidationErrors(prev => ({
+      ...prev,
+      [name]: undefined
+    }));
   };
 
   const handleSymptomToggle = (symptom) => {
@@ -70,17 +79,63 @@ const HealthAssessment = ({ onSubmit, loading }) => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const validateForm = () => {
+    const newErrors = {};
+    
+    // Validate required fields based on current step
+    switch (currentStep) {
+      case 1:
+        if (!formData.age) newErrors.age = 'Age is required';
+        if (!formData.gender) newErrors.gender = 'Gender is required';
+        if (!formData.height) newErrors.height = 'Height is required';
+        if (!formData.weight) newErrors.weight = 'Weight is required';
+        break;
+      case 2:
+        if (selectedSymptoms.length === 0) newErrors.symptoms = 'At least one symptom is required';
+        if (!formData.duration) newErrors.duration = 'Duration is required';
+        if (!formData.severity) newErrors.severity = 'Severity level is required';
+        break;
+      case 3:
+        if (!formData.medications) newErrors.medications = 'Medications field is required';
+        if (!formData.allergies) newErrors.allergies = 'Allergies field is required';
+        break;
+      case 4:
+        if (!formData.lifestyle.exercise) newErrors.exercise = 'Exercise frequency is required';
+        if (!formData.lifestyle.sleep) newErrors.sleep = 'Sleep hours are required';
+        break;
+    }
+
+    setValidationErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Form submitted with data:', formData);
-    if (onSubmit && typeof onSubmit === 'function') {
-      onSubmit(formData);
-    } else {
-      console.error('onSubmit prop is not a function');
+    
+    // Validate form before submission
+    if (!validateForm()) {
+      return;
+    }
+
+    try {
+      if (onSubmit && typeof onSubmit === 'function') {
+        await onSubmit(formData);
+      } else {
+        throw new Error('onSubmit prop is not a function');
+      }
+    } catch (error) {
+      if (onError && typeof onError === 'function') {
+        onError(error.message);
+      }
     }
   };
 
   const nextStep = () => {
+    // Validate current step before moving forward
+    if (!validateForm()) {
+      return;
+    }
+
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
     }
@@ -109,6 +164,9 @@ const HealthAssessment = ({ onSubmit, loading }) => {
                   onChange={handleInputChange}
                   required
                 />
+                {validationErrors.age && (
+                  <div className="error-message">{validationErrors.age}</div>
+                )}
               </div>
               <div className="form-group">
                 <label htmlFor="gender">Gender</label>
@@ -124,6 +182,9 @@ const HealthAssessment = ({ onSubmit, loading }) => {
                   <option value="female">Female</option>
                   <option value="other">Other</option>
                 </select>
+                {validationErrors.gender && (
+                  <div className="error-message">{validationErrors.gender}</div>
+                )}
               </div>
               <div className="form-group">
                 <label htmlFor="height">Height (cm)</label>
@@ -135,6 +196,9 @@ const HealthAssessment = ({ onSubmit, loading }) => {
                   onChange={handleInputChange}
                   required
                 />
+                {validationErrors.height && (
+                  <div className="error-message">{validationErrors.height}</div>
+                )}
               </div>
               <div className="form-group">
                 <label htmlFor="weight">Weight (kg)</label>
@@ -146,6 +210,9 @@ const HealthAssessment = ({ onSubmit, loading }) => {
                   onChange={handleInputChange}
                   required
                 />
+                {validationErrors.weight && (
+                  <div className="error-message">{validationErrors.weight}</div>
+                )}
               </div>
             </div>
           </div>
@@ -168,6 +235,9 @@ const HealthAssessment = ({ onSubmit, loading }) => {
                   </div>
                 ))}
               </div>
+              {validationErrors.symptoms && (
+                <div className="error-message">{validationErrors.symptoms}</div>
+              )}
             </div>
             
             <div className="form-grid">
@@ -185,6 +255,9 @@ const HealthAssessment = ({ onSubmit, loading }) => {
                   <option value="1-2 weeks">1-2 weeks</option>
                   <option value="more than 2 weeks">More than 2 weeks</option>
                 </select>
+                {validationErrors.duration && (
+                  <div className="error-message">{validationErrors.duration}</div>
+                )}
               </div>
               <div className="form-group">
                 <label htmlFor="severity">Severity level</label>
@@ -199,6 +272,9 @@ const HealthAssessment = ({ onSubmit, loading }) => {
                   <option value="moderate">Moderate</option>
                   <option value="severe">Severe</option>
                 </select>
+                {validationErrors.severity && (
+                  <div className="error-message">{validationErrors.severity}</div>
+                )}
               </div>
             </div>
           </div>
@@ -218,6 +294,9 @@ const HealthAssessment = ({ onSubmit, loading }) => {
                 placeholder="List any medications you're currently taking..."
                 rows="4"
               />
+              {validationErrors.medications && (
+                <div className="error-message">{validationErrors.medications}</div>
+              )}
             </div>
             
             <div className="form-group">
@@ -230,6 +309,9 @@ const HealthAssessment = ({ onSubmit, loading }) => {
                 placeholder="List any known allergies..."
                 rows="4"
               />
+              {validationErrors.allergies && (
+                <div className="error-message">{validationErrors.allergies}</div>
+              )}
             </div>
           </div>
         );
@@ -276,6 +358,9 @@ const HealthAssessment = ({ onSubmit, loading }) => {
                   <option value="regularly">Regularly</option>
                   <option value="daily">Daily</option>
                 </select>
+                {validationErrors.exercise && (
+                  <div className="error-message">{validationErrors.exercise}</div>
+                )}
               </div>
               <div className="form-group">
                 <label htmlFor="sleep">Average sleep hours</label>
@@ -292,6 +377,9 @@ const HealthAssessment = ({ onSubmit, loading }) => {
                   <option value="8-9">8-9 hours</option>
                   <option value="more than 9">More than 9 hours</option>
                 </select>
+                {validationErrors.sleep && (
+                  <div className="error-message">{validationErrors.sleep}</div>
+                )}
               </div>
             </div>
           </div>

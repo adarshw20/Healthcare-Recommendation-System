@@ -11,17 +11,69 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './App.css';
 
-// Mock API service
-const mockApiService = {
+// Real API service
+const apiService = {
   getRecommendations: async (data) => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    const symptoms = data.symptoms || [];
-    const age = data.age || 30;
-    const bmi = data.weight && data.height 
-      ? (data.weight / ((data.height / 100) ** 2)).toFixed(1)
-      : 22.5; // Default normal BMI
+    try {
+      const response = await fetch('http://localhost:5000/api/health-assessment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(data)
+      });
+      
+      const responseData = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(responseData.error || 'Failed to get recommendations');
+      }
+      
+      // Transform backend response to match frontend expectations
+      if (responseData.data) {
+        return {
+          diagnosis: {
+            condition: responseData.data.condition,
+            severity: responseData.data.severity,
+            notes: responseData.data.recommendation
+          },
+          medications: responseData.data.medications || [],
+          diet: {
+            ...responseData.data.diet_plan,
+            hydration: [
+              'Drink at least 8-10 glasses of water daily',
+              'Limit sugary and caffeinated beverages',
+              'Increase water intake during exercise or hot weather'
+            ]
+          },
+          fitness: {
+            ...responseData.data.fitness_plan,
+            flexibility: [
+              'Daily stretching routine (10-15 minutes)',
+              'Yoga or Pilates 2-3 times per week',
+              'Focus on major muscle groups and problem areas'
+            ],
+            rest: [
+              '7-9 hours of quality sleep per night',
+              'Rest days between intense workouts',
+              'Practice stress-reduction techniques'
+            ]
+          },
+          lastUpdated: new Date().toISOString(),
+          nextCheckup: responseData.data.severity === 'high' 
+            ? 'ASAP (Within 24-48 hours)' 
+            : responseData.data.severity === 'moderate'
+              ? 'Within 1-2 weeks'
+              : 'Routine check-up in 6-12 months'
+        };
+      }
+      
+      throw new Error('Invalid response format from server');
+    } catch (error) {
+      console.error('API Error:', error);
+      throw error;
+    }
 
     // Enhanced diagnosis logic
     let diagnosis = 'General wellness assessment';
@@ -202,46 +254,27 @@ function App() {
     };
   }, [scrollToSection]);
 
-  const handleAssessmentSubmit = async (formData) => {
+  const handleFormSubmit = async (formData) => {
     setLoading(true);
-    setError(null);
-    setAssessmentData(formData);
-    
     try {
-      // Show loading toast
-      const toastId = toast.loading('Analyzing your health data...');
-      
-      // Simulate API call with mock service
-      const result = await mockApiService.getRecommendations(formData);
-      
-      setRecommendations(result);
-      setLoading(false);
-      
-      // Update toast to success
-      toast.update(toastId, {
-        render: 'Health assessment complete!',
-        type: 'success',
-        isLoading: false,
-        autoClose: 3000,
-        closeButton: true,
-      });
-      
-      // Scroll to results after a short delay
-      setTimeout(() => {
-        scrollToSection('results');
-      }, 500);
-      
-    } catch (err) {
-      console.error('Error getting recommendations:', err);
-      setError('Failed to generate recommendations. Please try again.');
-      setLoading(false);
-      
-      toast.error('Failed to process your assessment. Please try again.', {
+      const results = await apiService.getRecommendations(formData);
+      if (!results) {
+        throw new Error('No results received from server');
+      }
+      setAssessmentData(formData);
+      setRecommendations(results);
+      setError(null);
+      scrollToSection('results');
+    } catch (error) {
+      setError(error.message || 'Failed to get recommendations');
+      toast.error(error.message || 'Failed to get recommendations', {
         position: 'top-center',
         autoClose: 5000,
         closeOnClick: true,
         pauseOnHover: true,
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -254,8 +287,12 @@ function App() {
             <Hero id="home" scrollToAssessment={() => scrollToSection('assessment')} />
             <HealthAssessment 
               id="assessment" 
-              onSubmit={handleAssessmentSubmit} 
-              loading={loading}
+              onSubmit={handleFormSubmit} 
+              loading={loading} 
+              onError={(error) => {
+                setError(error);
+                toast.error('Error: ' + error);
+              }}
             />
             {loading && (
               <div className="loading-overlay">
@@ -263,21 +300,10 @@ function App() {
                 <p>Analyzing your health data...</p>
               </div>
             )}
-            {error && (
-              <div className="error-message">
-                <p>{error}</p>
-                <button 
-                  className="btn btn-primary" 
-                  onClick={() => window.location.reload()}
-                >
-                  Try Again
-                </button>
-              </div>
-            )}
             {recommendations && (
               <Results 
                 id="results" 
-                data={assessmentData}
+                assessmentData={assessmentData}
                 recommendations={recommendations}
                 loading={loading}
               />

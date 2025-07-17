@@ -4,7 +4,7 @@ import './Results.css';
 import { useReactToPrint } from 'react-to-print';
 import { FaPrint, FaCalendarAlt, FaShare, FaPills, FaHeartbeat, FaUtensils, FaDumbbell, FaWeight, FaRuler, FaUser, FaVenusMars } from 'react-icons/fa';
 
-const Results = React.forwardRef(({ data, recommendations, loading }, ref) => {
+const Results = React.forwardRef(({ assessmentData, recommendations, loading }, ref) => {
   const { isDarkMode } = useTheme();
   const [isClient, setIsClient] = useState(false);
   const printRef = useRef();
@@ -36,6 +36,7 @@ const Results = React.forwardRef(({ data, recommendations, loading }, ref) => {
       }
     `
   });
+
   if (loading) {
     return (
       <div className="results-container">
@@ -57,6 +58,7 @@ const Results = React.forwardRef(({ data, recommendations, loading }, ref) => {
       </div>
     );
   }
+
   const handleScheduleFollowUp = () => {
     alert('Feature coming soon: This will allow you to schedule a follow-up appointment with a healthcare provider.');
   };
@@ -92,44 +94,44 @@ const Results = React.forwardRef(({ data, recommendations, loading }, ref) => {
                 <FaUser className="detail-icon" />
                 <div>
                   <div className={`detail-label ${isDarkMode ? 'dark-mode-text' : ''}`}>Age</div>
-                  <div className={`detail-value ${isDarkMode ? 'dark-mode-text' : ''}`}>{data?.age || 'N/A'} years</div>
+                  <div className={`detail-value ${isDarkMode ? 'dark-mode-text' : ''}`}>{assessmentData?.age || 'N/A'} years</div>
                 </div>
               </div>
               <div className="detail-item">
                 <FaVenusMars className="detail-icon" />
                 <div>
                   <div className={`detail-label ${isDarkMode ? 'dark-mode-text' : ''}`}>Gender</div>
-                  <div className={`detail-value ${isDarkMode ? 'dark-mode-text' : ''}`}>{data?.gender ? data.gender.charAt(0).toUpperCase() + data.gender.slice(1) : 'N/A'}</div>
+                  <div className={`detail-value ${isDarkMode ? 'dark-mode-text' : ''}`}>{assessmentData?.gender ? assessmentData.gender.charAt(0).toUpperCase() + assessmentData.gender.slice(1) : 'N/A'}</div>
                 </div>
               </div>
-              {data?.weight && data?.height && (
+              {assessmentData?.weight && assessmentData?.height && (
                 <div className="detail-item">
                   <FaWeight className="detail-icon" />
                   <div>
                     <div className={`detail-label ${isDarkMode ? 'dark-mode-text' : ''}`}>Weight</div>
-                    <div className={`detail-value ${isDarkMode ? 'dark-mode-text' : ''}`}>{data.weight} kg</div>
+                    <div className={`detail-value ${isDarkMode ? 'dark-mode-text' : ''}`}>{assessmentData.weight} kg</div>
                   </div>
                 </div>
               )}
-              {data?.height && (
+              {assessmentData?.height && (
                 <div className="detail-item">
                   <FaRuler className="detail-icon" />
                   <div>
                     <div className={`detail-label ${isDarkMode ? 'dark-mode-text' : ''}`}>Height</div>
-                    <div className={`detail-value ${isDarkMode ? 'dark-mode-text' : ''}`}>{data.height} cm</div>
+                    <div className={`detail-value ${isDarkMode ? 'dark-mode-text' : ''}`}>{assessmentData.height} cm</div>
                   </div>
                 </div>
               )}
-              {data?.weight && data?.height && (
+              {assessmentData?.weight && assessmentData?.height && (
                 <div className="detail-item">
                   <FaHeartbeat className="detail-icon" />
                   <div>
                     <div className={`detail-label ${isDarkMode ? 'dark-mode-text' : ''}`}>BMI</div>
                     <div className={`detail-value ${isDarkMode ? 'dark-mode-text' : ''}`}>
-                      {(data.weight / ((data.height / 100) ** 2)).toFixed(1)}
+                      {(assessmentData.weight / ((assessmentData.height / 100) ** 2)).toFixed(1)}
                       <span className="bmi-category">
                         {(() => {
-                          const bmi = data.weight / ((data.height / 100) ** 2);
+                          const bmi = assessmentData.weight / ((assessmentData.height / 100) ** 2);
                           if (bmi < 18.5) return ' (Underweight)';
                           if (bmi < 25) return ' (Normal)';
                           if (bmi < 30) return ' (Overweight)';
@@ -181,8 +183,8 @@ const Results = React.forwardRef(({ data, recommendations, loading }, ref) => {
                 <div className="symptoms-list">
                   <h4 className={`card-subtitle ${isDarkMode ? 'dark-mode-text' : ''}`}>Reported Symptoms</h4>
                   <div className="symptoms-tags">
-                    {data?.symptoms?.length > 0 ? (
-                      data.symptoms.map((symptom, index) => (
+                    {assessmentData?.symptoms?.length > 0 ? (
+                      assessmentData.symptoms.map((symptom, index) => (
                         <span key={index} className={`symptom-tag ${isDarkMode ? 'dark-mode-text' : ''}`}>{symptom}</span>
                       ))
                     ) : (
@@ -210,27 +212,30 @@ const Results = React.forwardRef(({ data, recommendations, loading }, ref) => {
                   Always consult with your healthcare provider before starting any new medications.
                 </div>
               </div>
-              
               <div className="medications-grid">
-                {recommendations.medications.map((med, index) => (
-                  <div key={index} className="medication-card">
-                    <h4 className={`medication-name ${isDarkMode ? 'dark-mode-text' : ''}`}>{med.name}</h4>
-                    <div className="medication-details">
-                      <div className="detail-row">
-                        <span className={`detail-label ${isDarkMode ? 'dark-mode-text' : ''}`}>Dosage:</span>
-                        <span className={`detail-value ${isDarkMode ? 'dark-mode-text' : ''}`}>{med.dosage}</span>
-                      </div>
-                      <div className="detail-row">
-                        <span className={`detail-label ${isDarkMode ? 'dark-mode-text' : ''}`}>Purpose:</span>
-                        <span className={`detail-value ${isDarkMode ? 'dark-mode-text' : ''}`}>{med.purpose}</span>
-                      </div>
-                      <div className="detail-row warning">
-                        <span className={`detail-label ${isDarkMode ? 'dark-mode-text' : ''}`}>Note:</span>
-                        <span className={`detail-value ${isDarkMode ? 'dark-mode-text' : ''}`}>{med.warning}</span>
+                {Array.isArray(recommendations?.medications) && recommendations.medications.length > 0 ? (
+                  recommendations.medications.map((med, index) => (
+                    <div key={index} className="medication-card">
+                      <h4 className={`medication-name ${isDarkMode ? 'dark-mode-text' : ''}`}>{med.name}</h4>
+                      <div className="medication-details">
+                        <div className="detail-row">
+                          <span className={`detail-label ${isDarkMode ? 'dark-mode-text' : ''}`}>Dosage:</span>
+                          <span className={`detail-value ${isDarkMode ? 'dark-mode-text' : ''}`}>{med.dosage}</span>
+                        </div>
+                        <div className="detail-row">
+                          <span className={`detail-label ${isDarkMode ? 'dark-mode-text' : ''}`}>Purpose:</span>
+                          <span className={`detail-value ${isDarkMode ? 'dark-mode-text' : ''}`}>{med.purpose}</span>
+                        </div>
+                        <div className="detail-row warning">
+                          <span className={`detail-label ${isDarkMode ? 'dark-mode-text' : ''}`}>Note:</span>
+                          <span className={`detail-value ${isDarkMode ? 'dark-mode-text' : ''}`}>{med.warning}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className={`no-data ${isDarkMode ? 'dark-mode-text' : ''}`}>No medication recommendations available</p>
+                )}
               </div>
             </div>
           </div>
@@ -245,36 +250,52 @@ const Results = React.forwardRef(({ data, recommendations, loading }, ref) => {
                 <div className="meal-section">
                   <h4 className={`card-subtitle ${isDarkMode ? 'dark-mode-text' : ''}`}>🌅 Breakfast</h4>
                   <ul>
-                    {recommendations.diet.breakfast.map((item, index) => (
-                      <li key={index} className={`diet-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
-                    ))}
+                    {Array.isArray(recommendations?.diet?.breakfast) && recommendations.diet.breakfast.length > 0 ? (
+                      recommendations.diet.breakfast.map((item, index) => (
+                        <li key={index} className={`diet-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
+                      ))
+                    ) : (
+                      <li className={`diet-item ${isDarkMode ? 'dark-mode-text' : ''}`}>No specific breakfast recommendations available</li>
+                    )}
                   </ul>
                 </div>
                 
                 <div className="meal-section">
                   <h4 className={`card-subtitle ${isDarkMode ? 'dark-mode-text' : ''}`}>🌞 Lunch</h4>
                   <ul>
-                    {recommendations.diet.lunch.map((item, index) => (
-                      <li key={index} className={`diet-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
-                    ))}
+                    {Array.isArray(recommendations?.diet?.lunch) && recommendations.diet.lunch.length > 0 ? (
+                      recommendations.diet.lunch.map((item, index) => (
+                        <li key={index} className={`diet-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
+                      ))
+                    ) : (
+                      <li className={`diet-item ${isDarkMode ? 'dark-mode-text' : ''}`}>No specific lunch recommendations available</li>
+                    )}
                   </ul>
                 </div>
                 
                 <div className="meal-section">
                   <h4 className={`card-subtitle ${isDarkMode ? 'dark-mode-text' : ''}`}>🌙 Dinner</h4>
                   <ul>
-                    {recommendations.diet.dinner.map((item, index) => (
-                      <li key={index} className={`diet-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
-                    ))}
+                    {Array.isArray(recommendations?.diet?.dinner) && recommendations.diet.dinner.length > 0 ? (
+                      recommendations.diet.dinner.map((item, index) => (
+                        <li key={index} className={`diet-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
+                      ))
+                    ) : (
+                      <li className={`diet-item ${isDarkMode ? 'dark-mode-text' : ''}`}>No specific dinner recommendations available</li>
+                    )}
                   </ul>
                 </div>
                 
                 <div className="meal-section">
                   <h4 className={`card-subtitle ${isDarkMode ? 'dark-mode-text' : ''}`}>🍎 Snacks</h4>
                   <ul>
-                    {recommendations.diet.snacks.map((item, index) => (
-                      <li key={index} className={`diet-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
-                    ))}
+                    {Array.isArray(recommendations?.diet?.snacks) && recommendations.diet.snacks.length > 0 ? (
+                      recommendations.diet.snacks.map((item, index) => (
+                        <li key={index} className={`diet-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
+                      ))
+                    ) : (
+                      <li className={`diet-item ${isDarkMode ? 'dark-mode-text' : ''}`}>No specific snack recommendations available</li>
+                    )}
                   </ul>
                 </div>
               </div>
@@ -291,36 +312,52 @@ const Results = React.forwardRef(({ data, recommendations, loading }, ref) => {
                 <div className="fitness-section">
                   <h4 className={`card-subtitle ${isDarkMode ? 'dark-mode-text' : ''}`}>🏃 Cardiovascular</h4>
                   <ul>
-                    {recommendations.fitness.cardio.map((item, index) => (
-                      <li key={index} className={`fitness-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
-                    ))}
+                    {Array.isArray(recommendations?.fitness?.cardio) && recommendations.fitness.cardio.length > 0 ? (
+                      recommendations.fitness.cardio.map((item, index) => (
+                        <li key={index} className={`fitness-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
+                      ))
+                    ) : (
+                      <li className={`fitness-item ${isDarkMode ? 'dark-mode-text' : ''}`}>No specific cardiovascular recommendations available</li>
+                    )}
                   </ul>
                 </div>
                 
                 <div className="fitness-section">
                   <h4 className={`card-subtitle ${isDarkMode ? 'dark-mode-text' : ''}`}>🏋️ Strength Training</h4>
                   <ul>
-                    {recommendations.fitness.strength.map((item, index) => (
-                      <li key={index} className={`fitness-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
-                    ))}
+                    {Array.isArray(recommendations?.fitness?.strength) && recommendations.fitness.strength.length > 0 ? (
+                      recommendations.fitness.strength.map((item, index) => (
+                        <li key={index} className={`fitness-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
+                      ))
+                    ) : (
+                      <li className={`fitness-item ${isDarkMode ? 'dark-mode-text' : ''}`}>No specific strength training recommendations available</li>
+                    )}
                   </ul>
                 </div>
                 
                 <div className="fitness-section">
                   <h4 className={`card-subtitle ${isDarkMode ? 'dark-mode-text' : ''}`}>🧘 Flexibility</h4>
                   <ul>
-                    {recommendations.fitness.flexibility.map((item, index) => (
-                      <li key={index} className={`fitness-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
-                    ))}
+                    {Array.isArray(recommendations?.fitness?.flexibility) && recommendations.fitness.flexibility.length > 0 ? (
+                      recommendations.fitness.flexibility.map((item, index) => (
+                        <li key={index} className={`fitness-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
+                      ))
+                    ) : (
+                      <li className={`fitness-item ${isDarkMode ? 'dark-mode-text' : ''}`}>No specific flexibility recommendations available</li>
+                    )}
                   </ul>
                 </div>
                 
                 <div className="fitness-section">
                   <h4 className={`card-subtitle ${isDarkMode ? 'dark-mode-text' : ''}`}>😴 Rest & Recovery</h4>
                   <ul>
-                    {recommendations.fitness.rest.map((item, index) => (
-                      <li key={index} className={`fitness-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
-                    ))}
+                    {Array.isArray(recommendations?.fitness?.rest) && recommendations.fitness.rest.length > 0 ? (
+                      recommendations.fitness.rest.map((item, index) => (
+                        <li key={index} className={`fitness-item ${isDarkMode ? 'dark-mode-text' : ''}`}>{item}</li>
+                      ))
+                    ) : (
+                      <li className={`fitness-item ${isDarkMode ? 'dark-mode-text' : ''}`}>No specific rest and recovery recommendations available</li>
+                    )}
                   </ul>
                 </div>
               </div>
