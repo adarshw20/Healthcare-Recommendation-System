@@ -1,0 +1,128 @@
+.error-boundary {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background-color: #f8f9fa;
+  text-align: center;
+}
+
+.error-boundary-content {
+  max-width: 600px;
+  background: white;
+  padding: 2.5rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  border-left: 5px solid #e63946;
+}
+
+.error-icon {
+  color: #e63946;
+  margin-bottom: 1.5rem;
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-20px);
+  }
+  60% {
+    transform: translateY(-10px);
+  }
+}
+
+.error-boundary h2 {
+  color: #212529;
+  margin-bottom: 1rem;
+  font-size: 1.75rem;
+}
+
+.error-boundary p {
+  color: #495057;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.error-details {
+  text-align: left;
+  margin: 1.5rem 0;
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e9ecef;
+}
+
+.error-details summary {
+  font-weight: 600;
+  color: #212529;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+  outline: none;
+}
+
+.error-stack {
+  white-space: pre-wrap;
+  font-family: 'Fira Code', 'Roboto Mono', monospace;
+  font-size: 0.85rem;
+  color: #dc3545;
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: #fff5f5;
+  border-radius: 0.25rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.error-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 2rem;
+  flex-wrap: wrap;
+}
+
+.error-actions .btn {
+  min-width: 140px;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .error-boundary {
+    background-color: #0f172a;
+  }
+  
+  .error-boundary-content {
+    background-color: #1e293b;
+    border-left-color: #f87171;
+  }
+  
+  .error-icon {
+    color: #f87171;
+  }
+  
+  .error-boundary h2 {
+    color: #f8fafc;
+  }
+  
+  .error-boundary p {
+    color: #cbd5e1;
+  }
+  
+  .error-details {
+    background-color: #1e293b;
+    border-color: #334155;
+  }
+  
+  .error-details summary {
+    color: #e2e8f0;
+  }
+  
+  .error-stack {
+    background-color: #1e1e2e;
+    color: #fecaca;
+  }
+}
